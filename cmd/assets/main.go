@@ -30,8 +30,7 @@ var (
 func main() {
 	parseFlags()
 
-	files := assets.New(leftDelim, rightDelim)
-	processed, manifest, err := files.Generate(input, ignoreRegexp)
+	processed, manifest, err := assets.Generate(input, leftDelim, rightDelim, ignoreRegexp)
 	if err != nil {
 		panic(err)
 	}
