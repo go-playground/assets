@@ -31,12 +31,15 @@ func main() {
 	parseFlags()
 
 	files := assets.New(leftDelim, rightDelim)
-	processed, err := files.Generate(input, ignoreRegexp)
+	processed, manifest, err := files.Generate(input, ignoreRegexp)
 	if err != nil {
 		panic(err)
 	}
 
 	printResults(processed)
+
+	fmt.Println("\nManifest Generated:", manifest)
+	fmt.Printf("\n")
 }
 
 func printResults(processed []*bundler.ProcessedFile) {
@@ -46,8 +49,6 @@ func printResults(processed []*bundler.ProcessedFile) {
 	for _, file := range processed {
 		fmt.Println("  " + file.NewFilename)
 	}
-
-	fmt.Printf("\n\n")
 }
 
 func parseFlags() {
