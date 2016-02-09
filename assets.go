@@ -3,10 +3,13 @@ package assets
 import (
 	"bufio"
 	"bytes"
+	"crypto/md5"
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -38,9 +41,19 @@ const (
 
 // Generate processes (bundles, compresses...) the assets for use and creates the Manifest file
 // NOTE: no compression yet until there is a native and establishes compressor written in Go
-func Generate(dirname string, leftDelim string, rightDelim string, ignoreRegexp *regexp.Regexp) ([]*bundler.ProcessedFile, string, error) {
+func Generate(dirname string, outputDir string, relativeToDir bool, leftDelim string, rightDelim string, ignoreRegexp *regexp.Regexp) ([]*bundler.ProcessedFile, string, error) {
 
 	dirname = filepath.Clean(dirname)
+	outputDir = filepath.Clean(outputDir) + string(filepath.Separator)
+
+	abs, err := filepath.Abs(outputDir)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if err = os.MkdirAll(abs, os.FileMode(0777)); err != nil {
+		return nil, "", err
+	}
 
 	// verify dirname is actually a DIR + do symlink check
 	fi, err := os.Lstat(dirname)
@@ -74,7 +87,32 @@ func Generate(dirname string, leftDelim string, rightDelim string, ignoreRegexp 
 		}
 	}
 
-	processed, err := bundler.BundleDir(dirname, "", leftDelim, rightDelim, ignoreRegexp)
+	var manifest string
+
+	if outputDir == "" {
+		manifest = dirname + manifestFile
+	} else {
+		manifest = outputDir + dirname + manifestFile
+	}
+
+	f, err := os.Open(manifest)
+	if err == nil {
+		defer f.Close()
+		scanner := bufio.NewScanner(f)
+
+		for scanner.Scan() {
+			files := strings.SplitN(scanner.Text(), oldNewSeparator, 2)
+
+			fmt.Println("Removing:", files[1])
+			os.Remove(files[1])
+		}
+
+		os.Remove(manifest)
+	}
+
+	// var processed []*bundler.ProcessedFile
+
+	processed, err := bundleDir(dirname, "", false, "", ignoreRegexp, outputDir, relativeToDir, dirname, leftDelim, rightDelim)
 	if err != nil {
 		return nil, "", err
 	}
@@ -88,8 +126,6 @@ func Generate(dirname string, leftDelim string, rightDelim string, ignoreRegexp 
 		buff.WriteString("\n")
 	}
 
-	manifest := dirname + manifestFile
-
 	if err = ioutil.WriteFile(manifest, buff.Bytes(), 0644); err != nil {
 		return nil, "", err
 	}
@@ -97,24 +133,210 @@ func Generate(dirname string, leftDelim string, rightDelim string, ignoreRegexp 
 	return processed, manifest, nil
 }
 
+func bundleDir(path string, dir string, isSymlinkDir bool, symlinkDir string, ignoreRegexp *regexp.Regexp, output string, relativeToDir bool, relativeDir string, leftDelim string, rightDelim string) ([]*bundler.ProcessedFile, error) {
+
+	var p string
+	var processed []*bundler.ProcessedFile
+	var cp bool
+
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	files, err := f.Readdir(0)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, file := range files {
+
+		info := file
+		p = path + string(os.PathSeparator) + file.Name()
+		fPath := p
+
+		if isSymlinkDir {
+			fPath = strings.Replace(p, dir, symlinkDir, 1)
+		}
+
+		if ignoreRegexp != nil && ignoreRegexp.MatchString(fPath) {
+			cp = true
+		}
+
+		if file.IsDir() {
+
+			processedFiles, err := bundleDir(p, p, isSymlinkDir, symlinkDir+string(os.PathSeparator)+info.Name(), ignoreRegexp, output, relativeToDir, relativeDir, leftDelim, rightDelim)
+			if err != nil {
+				return nil, err
+			}
+
+			processed = append(processed, processedFiles...)
+
+			continue
+		}
+
+		if file.Mode()&os.ModeSymlink == os.ModeSymlink {
+
+			link, err := filepath.EvalSymlinks(p)
+			if err != nil {
+				log.Panic("Error Resolving Symlink", err)
+			}
+
+			fi, err := os.Stat(link)
+			if err != nil {
+				log.Panic(err)
+			}
+
+			info = fi
+
+			if fi.IsDir() {
+
+				processedFiles, err := bundleDir(link, link, true, fPath, ignoreRegexp, output, relativeToDir, relativeDir, leftDelim, rightDelim)
+				if err != nil {
+					return nil, err
+				}
+
+				processed = append(processed, processedFiles...)
+
+				continue
+			}
+		}
+
+		if cp {
+			// just copy file to final location
+			if err := copyFile(p, output); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		// process file
+		file, err := bundleFile(p, output, relativeToDir, relativeDir, leftDelim, rightDelim)
+		if err != nil {
+			return nil, err
+		}
+
+		processed = append(processed, file)
+	}
+
+	return processed, nil
+}
+
+func copyFile(path string, output string) error {
+
+	dirname := output + string(filepath.Separator) + path
+
+	if err := os.MkdirAll(filepath.Dir(dirname), os.FileMode(0777)); err != nil {
+		return err
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	out, err := os.Create(dirname)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, f)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func bundleFile(path string, output string, relativeToDir bool, relativeDir string, leftDelim string, rightDelim string) (*bundler.ProcessedFile, error) {
+
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	newFile, err := ioutil.TempFile("", filepath.Base(f.Name()))
+	if err != nil {
+		return nil, err
+	}
+
+	if err = bundler.Bundle(f, newFile, filepath.Dir(path), relativeToDir, relativeDir, leftDelim, rightDelim); err != nil {
+		return nil, err
+	}
+
+	var newName string
+
+	dirname, filename := filepath.Split(path)
+	origDir := dirname
+	ext := filepath.Ext(filename)
+	filename = filepath.Base(filename)
+
+	if output != "" {
+		dirname = output + string(filepath.Separator) + dirname + string(filepath.Separator)
+	}
+
+	newName = dirname + filename[0:strings.LastIndex(filename, ext)]
+	origDir += filename[0:strings.LastIndex(filename, ext)]
+
+	b, err := ioutil.ReadFile(newFile.Name())
+	if err != nil {
+		return nil, err
+	}
+
+	h := md5.New()
+	h.Write(b)
+	hash := string(h.Sum(nil))
+
+	hashName := "-" + fmt.Sprintf("%x", hash) + ext
+	newName += hashName
+	origDir += hashName
+
+	if err = os.MkdirAll(filepath.Dir(newName), os.FileMode(0777)); err != nil {
+		return nil, err
+	}
+
+	if err = os.Rename(newFile.Name(), newName); err != nil {
+		return nil, err
+	}
+
+	return &bundler.ProcessedFile{OriginalFilename: path, NewFilename: origDir}, nil
+}
+
 // LoadManifestFiles reads the manifest file generated by the Generate() command
 // in Production mode and returns template.FuncMap for the provided RunMode
-func LoadManifestFiles(dirname string, mode RunMode, leftDelim string, rightDelim string) (template.FuncMap, error) {
+func LoadManifestFiles(dirname string, mode RunMode, relativeToDir bool, leftDelim string, rightDelim string) (template.FuncMap, error) {
+
+	var f *os.File
+	var err error
+
+	if mode == Production {
+		f, err = os.Open(dirname + manifestFile)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+	}
+
+	return ProcessManifestFiles(f, dirname, mode, relativeToDir, leftDelim, rightDelim)
+}
+
+// ProcessManifestFiles reads an existing manifest file generated by the Generate() command
+// in Production mode and returns template.FuncMap for the provided RunMode
+func ProcessManifestFiles(manifest io.Reader, dirname string, mode RunMode, relativeToDir bool, leftDelim string, rightDelim string) (template.FuncMap, error) {
 
 	mapped := map[string]string{}
 	dirname = filepath.Clean(dirname) + string(os.PathSeparator)
 
 	if mode == Production {
-		f, err := os.Open(dirname + manifestFile)
-		if err != nil {
-			return nil, err
-		}
-		defer f.Close()
 
 		mapped := map[string]string{}
 		var files []string
 
-		scanner := bufio.NewScanner(f)
+		scanner := bufio.NewScanner(manifest)
 
 		for scanner.Scan() {
 			files = strings.SplitN(scanner.Text(), oldNewSeparator, 2)
@@ -122,10 +344,10 @@ func LoadManifestFiles(dirname string, mode RunMode, leftDelim string, rightDeli
 		}
 	}
 
-	return loadMapFuncs(dirname, mode, leftDelim, rightDelim, mapped), nil
+	return loadMapFuncs(dirname, mode, relativeToDir, leftDelim, rightDelim, mapped), nil
 }
 
-func loadMapFuncs(dirname string, mode RunMode, leftDelim string, rightDelim string, mapped map[string]string) template.FuncMap {
+func loadMapFuncs(dirname string, mode RunMode, relativeToDir bool, leftDelim string, rightDelim string, mapped map[string]string) template.FuncMap {
 
 	funcs := template.FuncMap{}
 
@@ -136,8 +358,8 @@ func loadMapFuncs(dirname string, mode RunMode, leftDelim string, rightDelim str
 		return funcs
 	}
 
-	funcs[cssHTMLTag] = createDevCSSTemplateFunc(dirname, leftDelim, rightDelim)
-	funcs[jsHTMLTag] = createDevJSTemplateFunc(dirname, leftDelim, rightDelim)
+	funcs[cssHTMLTag] = createDevCSSTemplateFunc(dirname, relativeToDir, leftDelim, rightDelim)
+	funcs[jsHTMLTag] = createDevJSTemplateFunc(dirname, relativeToDir, leftDelim, rightDelim)
 
 	return funcs
 }
@@ -154,13 +376,13 @@ func createProdJSTemplateFunc(mapped map[string]string) interface{} {
 	}
 }
 
-func createDevCSSTemplateFunc(dirname string, leftDelim string, rightDelim string) interface{} {
+func createDevCSSTemplateFunc(dirname string, relativeToDir bool, leftDelim string, rightDelim string) interface{} {
 	// custom lexer, bytesBuffer
 
 	return func(name string) template.HTML {
 		buff := new(bytes.Buffer)
 
-		files, err := loadFromDelims(dirname, name, leftDelim, rightDelim)
+		files, err := loadFromDelims(dirname, name, relativeToDir, dirname, leftDelim, rightDelim)
 		if err != nil {
 			panic(err)
 		}
@@ -175,13 +397,13 @@ func createDevCSSTemplateFunc(dirname string, leftDelim string, rightDelim strin
 	}
 }
 
-func createDevJSTemplateFunc(dirname string, leftDelim string, rightDelim string) interface{} {
+func createDevJSTemplateFunc(dirname string, relativeToDir bool, leftDelim string, rightDelim string) interface{} {
 	// custom lexer, bytesBuffer
 
 	return func(name string) template.HTML {
 		buff := new(bytes.Buffer)
 
-		files, err := loadFromDelims(dirname, name, leftDelim, rightDelim)
+		files, err := loadFromDelims(dirname, name, relativeToDir, dirname, leftDelim, rightDelim)
 		if err != nil {
 			panic(err)
 		}
@@ -196,7 +418,7 @@ func createDevJSTemplateFunc(dirname string, leftDelim string, rightDelim string
 	}
 }
 
-func loadFromDelims(dirname string, name string, leftDelim string, rightDelim string) ([]string, error) {
+func loadFromDelims(dirname string, name string, relativeToDir bool, relativeDir string, leftDelim string, rightDelim string) ([]string, error) {
 	var err error
 	var files []string
 	var ok bool
@@ -223,14 +445,18 @@ LOOP:
 
 		case bundler.ItemFile:
 
-			path = filepath.FromSlash("/" + dirname + itm.Val)
+			if relativeToDir {
+				path = filepath.FromSlash("/" + itm.Val)
+			} else {
+				path = filepath.FromSlash("/" + dirname + itm.Val)
+			}
 
 			if _, ok = existing[path]; !ok {
 				files = append(files, path)
 				existing[path] = struct{}{}
 			}
 
-			fls, err := loadFromDelims(dirname, itm.Val, leftDelim, rightDelim)
+			fls, err := loadFromDelims(dirname, itm.Val, relativeToDir, relativeDir, leftDelim, rightDelim)
 			if err != nil {
 				return nil, err
 			}
