@@ -1,4 +1,7 @@
 ## assets
+[![Build Status](https://semaphoreci.com/api/v1/joeybloggs/assets-2/branches/master/badge.svg)](https://semaphoreci.com/joeybloggs/assets-2)
+[![Go Report Card](http://goreportcard.com/badge/go-playground/assets)](http://goreportcard.com/badge/go-playground/assets)
+[![GoDoc](https://godoc.org/github.com/go-playground/assets?status.svg)](https://godoc.org/github.com/go-playground/assets)
 
 assets is a simple + lightweight Asset Pipeline for Go HTML applications
 
