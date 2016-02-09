@@ -9,7 +9,7 @@ Couldn't find a good one that wasn't a mess or didn't rely on some other languag
 #### What's missing
 ----------
 Currently this library doesn't compress the combined files, when using Gzip it's not that big of a deal, however 
-once an established js and css conpressor is created it can be added seamlessly; **pull requests are welcome to help**
+once an established js and css compressor is created it can be added seamlessly; **pull requests are welcome to help**
 
 #### Installation
 ------------------
