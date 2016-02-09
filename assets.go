@@ -103,14 +103,12 @@ func Generate(dirname string, outputDir string, relativeToDir bool, leftDelim st
 		for scanner.Scan() {
 			files := strings.SplitN(scanner.Text(), oldNewSeparator, 2)
 
-			fmt.Println("Removing:", files[1])
+			fmt.Println("Removing Existing File:", files[1])
 			os.Remove(files[1])
 		}
 
 		os.Remove(manifest)
 	}
-
-	// var processed []*bundler.ProcessedFile
 
 	processed, err := bundleDir(dirname, "", false, "", ignoreRegexp, outputDir, relativeToDir, dirname, leftDelim, rightDelim)
 	if err != nil {
