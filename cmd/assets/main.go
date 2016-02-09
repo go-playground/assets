@@ -12,12 +12,12 @@ import (
 )
 
 var (
-	flagFileOrDir             = flag.String("i", "", "Directory to bundle files for recursivly.")
-	flagOuputFile             = flag.String("o", "", "If using a DIR in -i option then this will be the output file directory, if blank will use -i option DIR.")
+	flagFileOrDir             = flag.String("i", "", "Asset directory to bundle files for recursivly.")
+	flagOuputFile             = flag.String("o", "", "Output directory, if blank will use -i option DIR.")
 	flagLeftDelim             = flag.String("ld", "", "The Left Delimiter for file includes")
 	flagRightDelim            = flag.String("rd", "", "The Right Delimiter for file includes")
 	flagIncludesRelativeToDir = flag.Bool("rtd", true, "Specifies if the files included should be treated as relative to the directory, or relative to the files from which they are included.")
-	flagIgnore                = flag.String("ignore", "", "Regexp for files/dirs we should ignore i.e. \\.gitignore; only used when -i option is a DIR")
+	flagIgnore                = flag.String("ignore", "", "Regexp for files/dirs we should ignore i.e. \\.gitignore.")
 
 	input      string
 	output     string
