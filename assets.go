@@ -386,7 +386,7 @@ func createDevCSSTemplateFunc(dirname string, relativeToDir bool, leftDelim stri
 		}
 
 		for _, file := range files {
-			buff.WriteString(fmt.Sprintf(cssTag, file))
+			buff.WriteString(fmt.Sprintf(cssTag, "/"+filepath.Clean(dirname)+file))
 		}
 
 		buff.WriteString(fmt.Sprintf(cssTag, "/"+dirname+name))
@@ -407,7 +407,7 @@ func createDevJSTemplateFunc(dirname string, relativeToDir bool, leftDelim strin
 		}
 
 		for _, file := range files {
-			buff.WriteString(fmt.Sprintf(jsTag, file))
+			buff.WriteString(fmt.Sprintf(jsTag, "/"+filepath.Clean(dirname)+file))
 		}
 
 		buff.WriteString(fmt.Sprintf(jsTag, "/"+dirname+name))
