@@ -27,7 +27,7 @@ or to update
 go get -u github.com/go-playground/assets/cmd/assets
 ``` 
 
-Then import lars package into your code.
+Then import assets package into your code.
 
 ```go
 import "github.com/go-playground/assets"
