@@ -18,10 +18,12 @@ import (
 // go test -coverprofile cover.out && go tool cover -html=cover.out -o cover.html
 //
 
+var extensions = map[string]struct{}{".txt": {}}
+
 func TestGenerate(t *testing.T) {
 
 	// func Generate(dirname string, outputDir string, relativeToDir bool, leftDelim string, rightDelim string, ignoreRegexp *regexp.Regexp) ([]*bundler.ProcessedFile, string, error) {
-	processed, manifest, err := Generate("testfiles/test1", "testfiles/test1output", false, "include(", ")", nil)
+	processed, manifest, err := Generate("testfiles/test1", "testfiles/test1output", false, "include(", ")", extensions)
 	Equal(t, err, nil)
 	Equal(t, manifest, "testfiles/test1output/testfiles/test1/manifest.txt")
 	Equal(t, len(processed), 3)
@@ -46,7 +48,7 @@ func TestGenerate(t *testing.T) {
 func TestGenerateWithSymlinks(t *testing.T) {
 
 	// func Generate(dirname string, outputDir string, relativeToDir bool, leftDelim string, rightDelim string, ignoreRegexp *regexp.Regexp) ([]*bundler.ProcessedFile, string, error) {
-	processed, manifest, err := Generate("testfiles/test2", "testfiles/test2output", false, "include(", ")", nil)
+	processed, manifest, err := Generate("testfiles/test2", "testfiles/test2output", false, "include(", ")", extensions)
 	Equal(t, err, nil)
 	Equal(t, manifest, "testfiles/test2output/testfiles/test2/manifest.txt")
 	Equal(t, len(processed), 5)
