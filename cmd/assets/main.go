@@ -17,13 +17,14 @@ var (
 	flagLeftDelim             = flag.String("ld", "", "The Left Delimiter for file includes")
 	flagRightDelim            = flag.String("rd", "", "The Right Delimiter for file includes")
 	flagIncludesRelativeToDir = flag.Bool("rtd", true, "Specifies if the files included should be treated as relative to the directory, or relative to the files from which they are included.")
-	flagIgnore                = flag.String("ignore", "", "Regexp for files/dirs we should ignore i.e. \\.gitignore.")
+	flagProcessExtensions     = flag.String("extensions", ".js,.css", "Specifies a comma separated list of extensions of files to be processed. Deafult \".js,.css\"")
 
 	input      string
 	output     string
 	leftDelim  string
 	rightDelim string
 	ignore     string
+	extensions = map[string]struct{}{}
 
 	relativeToDir bool
 
@@ -35,7 +36,7 @@ var (
 func main() {
 	parseFlags()
 
-	processed, manifest, err := assets.Generate(input, output, relativeToDir, leftDelim, rightDelim, ignoreRegexp)
+	processed, manifest, err := assets.Generate(input, output, relativeToDir, leftDelim, rightDelim, extensions)
 	if err != nil {
 		panic(err)
 	}
@@ -64,7 +65,7 @@ func parseFlags() {
 	leftDelim = *flagLeftDelim
 	rightDelim = *flagRightDelim
 	relativeToDir = *flagIncludesRelativeToDir
-	ignore = *flagIgnore
+	ext := strings.TrimSpace(*flagProcessExtensions)
 
 	wasBlank := len(input) == 0
 
@@ -87,12 +88,11 @@ func parseFlags() {
 		panic("** No Right Delimiter specified with -rd option")
 	}
 
-	if len(ignore) > 0 {
-		var err error
+	if len(ext) == 0 {
+		panic("** No file extensions defined for processing using the -extension option")
+	}
 
-		ignoreRegexp, err = regexp.Compile(ignore)
-		if err != nil {
-			panic("**Error Compiling Regex:" + err.Error())
-		}
+	for _, s := range strings.Split(ext, ",") {
+		extensions[s] = struct{}{}
 	}
 }

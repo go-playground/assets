@@ -12,7 +12,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/go-playground/bundler"
@@ -41,7 +40,7 @@ const (
 
 // Generate processes (bundles, compresses...) the assets for use and creates the Manifest file
 // NOTE: no compression yet until there is a native and establishes compressor written in Go
-func Generate(dirname string, outputDir string, relativeToDir bool, leftDelim string, rightDelim string, ignoreRegexp *regexp.Regexp) ([]*bundler.ProcessedFile, string, error) {
+func Generate(dirname string, outputDir string, relativeToDir bool, leftDelim string, rightDelim string, extensions map[string]struct{}) ([]*bundler.ProcessedFile, string, error) {
 
 	dirname = filepath.Clean(dirname)
 	outputDir = filepath.Clean(outputDir) + string(filepath.Separator)
@@ -110,7 +109,7 @@ func Generate(dirname string, outputDir string, relativeToDir bool, leftDelim st
 		os.Remove(manifest)
 	}
 
-	processed, err := bundleDir(dirname, "", false, "", ignoreRegexp, outputDir, relativeToDir, dirname, leftDelim, rightDelim)
+	processed, err := bundleDir(dirname, "", false, "", extensions, outputDir, relativeToDir, dirname, leftDelim, rightDelim)
 	if err != nil {
 		return nil, "", err
 	}
@@ -131,11 +130,11 @@ func Generate(dirname string, outputDir string, relativeToDir bool, leftDelim st
 	return processed, manifest, nil
 }
 
-func bundleDir(path string, dir string, isSymlinkDir bool, symlinkDir string, ignoreRegexp *regexp.Regexp, output string, relativeToDir bool, relativeDir string, leftDelim string, rightDelim string) ([]*bundler.ProcessedFile, error) {
+func bundleDir(path string, dir string, isSymlinkDir bool, symlinkDir string, extensions map[string]struct{}, output string, relativeToDir bool, relativeDir string, leftDelim string, rightDelim string) ([]*bundler.ProcessedFile, error) {
 
 	var p string
+	var ext string
 	var processed []*bundler.ProcessedFile
-	var cp bool
 
 	f, err := os.Open(path)
 	if err != nil {
@@ -158,13 +157,9 @@ func bundleDir(path string, dir string, isSymlinkDir bool, symlinkDir string, ig
 			fPath = strings.Replace(p, dir, symlinkDir, 1)
 		}
 
-		if ignoreRegexp != nil && ignoreRegexp.MatchString(fPath) {
-			cp = true
-		}
-
 		if file.IsDir() {
 
-			processedFiles, err := bundleDir(p, p, isSymlinkDir, symlinkDir+string(os.PathSeparator)+info.Name(), ignoreRegexp, output, relativeToDir, relativeDir, leftDelim, rightDelim)
+			processedFiles, err := bundleDir(p, p, isSymlinkDir, symlinkDir+string(os.PathSeparator)+info.Name(), extensions, output, relativeToDir, relativeDir, leftDelim, rightDelim)
 			if err != nil {
 				return nil, err
 			}
@@ -190,7 +185,9 @@ func bundleDir(path string, dir string, isSymlinkDir bool, symlinkDir string, ig
 
 			if fi.IsDir() {
 
-				processedFiles, err := bundleDir(link, link, true, fPath, ignoreRegexp, output, relativeToDir, relativeDir, leftDelim, rightDelim)
+				// fmt.Println("Found Symlinked DIR:", p, link, fPath, output, relativeToDir, relativeDir)
+
+				processedFiles, err := bundleDir(link, link, true, fPath, extensions, output, relativeToDir, relativeDir, leftDelim, rightDelim)
 				if err != nil {
 					return nil, err
 				}
@@ -201,9 +198,16 @@ func bundleDir(path string, dir string, isSymlinkDir bool, symlinkDir string, ig
 			}
 		}
 
-		if cp {
+		// if we get here, it's a file
+		ext = filepath.Ext(fPath)
+
+		if _, ok := extensions[ext]; !ok {
+
+			// if isSymlinkDir && ext == ".eot" {
+			// 	fmt.Println("Copying SymlinkDirFile:", p, " output:", output, " fpath:", fPath)
+			// }
 			// just copy file to final location
-			if err := copyFile(p, output); err != nil {
+			if err := copyFile(fPath, output); err != nil {
 				return nil, err
 			}
 			continue
