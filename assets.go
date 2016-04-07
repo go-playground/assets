@@ -185,8 +185,6 @@ func bundleDir(path string, dir string, isSymlinkDir bool, symlinkDir string, ex
 
 			if fi.IsDir() {
 
-				// fmt.Println("Found Symlinked DIR:", p, link, fPath, output, relativeToDir, relativeDir)
-
 				processedFiles, err := bundleDir(link, link, true, fPath, extensions, output, relativeToDir, relativeDir, leftDelim, rightDelim)
 				if err != nil {
 					return nil, err
@@ -203,9 +201,6 @@ func bundleDir(path string, dir string, isSymlinkDir bool, symlinkDir string, ex
 
 		if _, ok := extensions[ext]; !ok {
 
-			// if isSymlinkDir && ext == ".eot" {
-			// 	fmt.Println("Copying SymlinkDirFile:", p, " output:", output, " fpath:", fPath)
-			// }
 			// just copy file to final location
 			if err := copyFile(fPath, output); err != nil {
 				return nil, err
