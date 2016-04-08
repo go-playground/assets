@@ -321,8 +321,6 @@ func bundleFile(path string, output string, relativeToDir bool, relativeDir stri
 	// perform minification
 	if extension == ".js" {
 
-		fmt.Println("Minifying JS")
-
 		if err := m.Minify("text/javascript", buff, bytes.NewReader(b)); err != nil {
 			return nil, err
 		}
