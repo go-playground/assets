@@ -15,6 +15,9 @@ import (
 	"strings"
 
 	"github.com/go-playground/bundler"
+	"github.com/tdewolff/minify"
+	"github.com/tdewolff/minify/css"
+	"github.com/tdewolff/minify/js"
 )
 
 const (
@@ -38,9 +41,24 @@ const (
 	cssTag = `<link type="text/css" rel="stylesheet" href="%s">`
 )
 
+var m *minify.M
+
+func initMinifier() {
+
+	if m != nil {
+		return
+	}
+
+	m = minify.New()
+	m.AddFunc("text/css", css.Minify)
+	m.AddFunc("text/javascript", js.Minify)
+}
+
 // Generate processes (bundles, compresses...) the assets for use and creates the Manifest file
 // NOTE: no compression yet until there is a native and establishes compressor written in Go
 func Generate(dirname string, outputDir string, relativeToDir bool, leftDelim string, rightDelim string, extensions map[string]struct{}) ([]*bundler.ProcessedFile, string, error) {
+
+	initMinifier()
 
 	dirname = filepath.Clean(dirname)
 	outputDir = filepath.Clean(outputDir) + string(filepath.Separator)
@@ -209,7 +227,7 @@ func bundleDir(path string, dir string, isSymlinkDir bool, symlinkDir string, ex
 		}
 
 		// process file
-		file, err := bundleFile(p, output, relativeToDir, relativeDir, leftDelim, rightDelim)
+		file, err := bundleFile(p, output, relativeToDir, relativeDir, leftDelim, rightDelim, ext)
 		if err != nil {
 			return nil, err
 		}
@@ -248,7 +266,7 @@ func copyFile(path string, output string) error {
 	return nil
 }
 
-func bundleFile(path string, output string, relativeToDir bool, relativeDir string, leftDelim string, rightDelim string) (*bundler.ProcessedFile, error) {
+func bundleFile(path string, output string, relativeToDir bool, relativeDir string, leftDelim string, rightDelim string, extension string) (*bundler.ProcessedFile, error) {
 
 	f, err := os.Open(path)
 	if err != nil {
@@ -260,6 +278,8 @@ func bundleFile(path string, output string, relativeToDir bool, relativeDir stri
 	if err != nil {
 		return nil, err
 	}
+
+	defer newFile.Close()
 
 	if err = bundler.Bundle(f, newFile, filepath.Dir(path), relativeToDir, relativeDir, leftDelim, rightDelim); err != nil {
 		return nil, err
@@ -296,9 +316,38 @@ func bundleFile(path string, output string, relativeToDir bool, relativeDir stri
 		return nil, err
 	}
 
-	if err = os.Rename(newFile.Name(), newName); err != nil {
+	buff := new(bytes.Buffer)
+
+	// perform minification
+	if extension == ".js" {
+
+		fmt.Println("Minifying JS")
+
+		if err := m.Minify("text/javascript", buff, bytes.NewReader(b)); err != nil {
+			return nil, err
+		}
+
+		// if strings.Contains(newName, "app-") {
+		// 	fmt.Println(buff.String())
+		// }
+
+	} else if extension == ".css" {
+		if err := m.Minify("text/css", buff, bytes.NewReader(b)); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := os.Remove(newFile.Name()); err != nil {
 		return nil, err
 	}
+
+	if err := ioutil.WriteFile(newName, buff.Bytes(), 0644); err != nil {
+		return nil, err
+	}
+
+	// if err = os.Rename(newFile.Name(), newName); err != nil {
+	// 	return nil, err
+	// }
 
 	return &bundler.ProcessedFile{OriginalFilename: path, NewFilename: origDir}, nil
 }

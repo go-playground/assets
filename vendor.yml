@@ -1,0 +1,13 @@
+vendors:
+- path: github.com/go-playground/bundler
+  rev: b3080b7a31f66de6225286217666dee868b69ba1
+- path: github.com/tdewolff/buffer
+  rev: 43cef5ba7b6ce99cc410632dad46cf1c6c97026e
+- path: github.com/tdewolff/minify
+  rev: bcdb7dc220ccc0d7c30bde0f32ce2ce47e49de98
+- path: github.com/tdewolff/parse
+  rev: 3c847ecc915d4611b5b799773b848e60a3fd4178
+- path: github.com/tdewolff/strconv
+  rev: 9b189f5be77f33c46776f24dbddb2a7ab32af214
+- path: gopkg.in/go-playground/assert.v1
+  rev: 4f4dfbc7d1c48336cf93399deae81aa9067e88af
