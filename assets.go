@@ -325,10 +325,6 @@ func bundleFile(path string, output string, relativeToDir bool, relativeDir stri
 			return nil, err
 		}
 
-		// if strings.Contains(newName, "app-") {
-		// 	fmt.Println(buff.String())
-		// }
-
 	} else if extension == ".css" {
 		if err := m.Minify("text/css", buff, bytes.NewReader(b)); err != nil {
 			return nil, err
@@ -342,10 +338,6 @@ func bundleFile(path string, output string, relativeToDir bool, relativeDir stri
 	if err := ioutil.WriteFile(newName, buff.Bytes(), 0644); err != nil {
 		return nil, err
 	}
-
-	// if err = os.Rename(newFile.Name(), newName); err != nil {
-	// 	return nil, err
-	// }
 
 	return &bundler.ProcessedFile{OriginalFilename: path, NewFilename: origDir}, nil
 }
@@ -505,7 +497,8 @@ LOOP:
 				return nil, err
 			}
 
-			files = append(files, fls...)
+			// must prepend as the just processed files are requirements.
+			files = append(fls, files...)
 
 		case bundler.ItemEOF:
 			break LOOP
