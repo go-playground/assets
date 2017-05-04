@@ -376,7 +376,7 @@ func ProcessManifestFiles(manifest io.Reader, dirname string, mode RunMode, rela
 		for scanner.Scan() {
 
 			files = strings.SplitN(scanner.Text(), oldNewSeparator, 2)
-			mapped[strings.TrimLeft(files[0], dirname)] = "/" + files[1]
+			mapped[strings.TrimLeft(strings.TrimLeft(files[0], dirname), "/")] = "/" + files[1]
 		}
 	}
 
